@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Free Consultancy Invoice Generator for Indian Professionals. TDS Compliant, PDF Export.">
+    <meta name="author" content="Bibin Jacob">
+    <title>Consultancy Invoice Generator | India</title>
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        @media print {
+            body { -webkit-print-color-adjust: exact; }
+        }
+        
+        /* STRICT A4 LAYOUT */
+        .invoice-preview {
+            width: 210mm;
+            height: 296mm; 
+            background: white;
+            position: relative; 
+            margin: 0 auto;
+            overflow: hidden; 
+            padding: 20mm;
+        }
+
+        /* Footer pinned to bottom */
+        .invoice-footer {
+            position: absolute;
+            bottom: 20mm;
+            left: 20mm;
+            right: 20mm;
+        }
+
+        /* Hide scrollbar for clean UI */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+    </style>
+</head>
+<body class="bg-gray-900 font-sans text-gray-800 antialiased selection:bg-blue-200 selection:text-blue-900">
+
+    <div class="container mx-auto p-4 lg:p-8">
+        <header class="mb-8 text-center text-white">
+            <h1 class="text-3xl lg:text-4xl font-bold tracking-tight">Consultancy Invoice Generator</h1>
+            <p class="text-xs text-gray-400 mt-2 tracking-wider uppercase opacity-80">Designed by Bibin Jacob</p>
+        </header>
+
+        <div class="flex flex-col lg:flex-row gap-8 items-start justify-center">
+            
+            <div class="bg-white p-6 rounded-xl shadow-2xl w-full lg:w-1/3 h-fit border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 border-b pb-2 text-gray-700 flex items-center gap-2">
+                    <span>✏️</span> Invoice Details
+                </h2>
+                
+                <div class="mb-5 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <label class="block text-xs font-bold text-blue-600 uppercase mb-2">Service Provider (You)</label>
+                    <input type="text" id="providerName" placeholder="Name / Firm" class="border p-2 rounded w-full mb-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none transition" oninput="updatePreview()">
+                    <input type="text" id="providerPan" placeholder="PAN (Mandatory)" class="border p-2 rounded w-full uppercase mb-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none transition" maxlength="10" oninput="validateProviderPan(this); updatePreview()">
+                    <textarea id="providerAddress" placeholder="Address" class="border p-2 rounded w-full text-sm focus:ring-2 focus:ring-blue-400 outline-none transition" rows="2" oninput="updatePreview()"></textarea>
+                    <p id="panStatusMsg" class="text-[10px] text-gray-400 mt-1 italic">Enter PAN to enable 1% TDS options.</p>
+                </div>
+
+                <div class="mb-5 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <label class="block text-xs font-bold text-blue-600 uppercase mb-2">Bill To (Client)</label>
+                    <input type="text" id="clientName" placeholder="Client Organization" class="border p-2 rounded w-full mb-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none transition" oninput="updatePreview()">
+                    <input type="text" id="clientPan" placeholder="Client PAN (Optional)" class="border p-2 rounded w-full uppercase mb-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none transition" maxlength="10" oninput="updatePreview()">
+                    <textarea id="clientAddress" placeholder="Billing Address" class="border p-2 rounded w-full text-sm focus:ring-2 focus:ring-blue-400 outline-none transition" rows="2" oninput="updatePreview()"></textarea>
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <div class="w-1/3">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Inv #</label>
+                        <input type="text" id="invoiceNo" placeholder="001" class="border p-2 rounded w-full text-sm" oninput="updatePreview()">
+                    </div>
+                    <div class="w-1/3">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
+                        <input type="date" id="invoiceDate" class="border p-2 rounded w-full text-sm" oninput="updatePreview()">
+                    </div>
+                    <div class="w-1/3">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Place</label>
+                        <input type="text" id="invoicePlace" placeholder="City" class="border p-2 rounded w-full text-sm" oninput="updatePreview()">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Services</label>
+                        <button onclick="addItem()" class="bg-blue-600 text-white px-3 py-1 text-xs rounded-full font-bold hover:bg-blue-700 transition shadow">+ Add Row</button>
+                    </div>
+                    <div id="itemsContainer" class="space-y-3 max-h-64 overflow-y-auto pr-1">
+                        </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">TDS Applicability</label>
+                    <select id="tdsSection" class="border p-2 rounded w-full mt-1 text-sm bg-gray-50" onchange="calculateTotals()">
+                        <option value="0">No TDS</option>
+                        <option value="10">Sec 194J - Professional Fees (10%)</option>
+                        <option value="2">Sec 194J - Technical Services (2%)</option>
+                        <option value="1" id="opt194c_1">Sec 194C - Contractor (Indiv/HUF) (1%)</option>
+                        <option value="2" id="opt194c_2">Sec 194C - Contractor (Other) (2%)</option>
+                        <option value="5">Sec 194H - Commission (5%)</option>
+                        <option value="10">Sec 194I - Rent (10%)</option>
+                    </select>
+                </div>
+
+                <button onclick="generatePDF()" class="w-full bg-green-600 text-white font-bold py-4 rounded-lg shadow-lg hover:bg-green-700 hover:shadow-xl transition transform active:scale-95 flex justify-center items-center gap-2">
+                    <span>📥</span> Download PDF Invoice
+                </button>
+            </div>
+
+            <div class="w-full lg:w-auto overflow-x-auto bg-gray-700 p-4 lg:p-8 rounded-xl border-4 border-gray-600 shadow-2xl">
+                <div id="invoiceElement" class="invoice-preview relative shadow-md">
+                    
+                    <div class="flex justify-between items-start mb-8">
+                        <div>
+                            <h1 class="text-4xl font-bold uppercase tracking-wide text-gray-800">Invoice</h1>
+                            <div class="mt-4 text-sm text-gray-600">
+                                <p id="prevInvNoRow" style="display:none"><strong>Invoice #:</strong> <span id="prevInvNo"></span></p>
+                                <p><strong>Date:</strong> <span id="prevDate"></span></p>
+                                <p><strong>Place:</strong> <span id="prevPlace">India</span></p>
+                            </div>
+                        </div>
+                        <div class="text-right max-w-[50%]">
+                            <h2 id="prevProviderName" class="text-xl font-bold text-gray-900 break-words">Your Name</h2>
+                            <p id="prevProviderAddress" class="text-sm text-gray-600 whitespace-pre-line mt-1">Address</p>
+                            <p class="text-sm text-gray-600 mt-1"><strong>PAN:</strong> <span id="prevProviderPan">XXXXX0000X</span></p>
+                        </div>
+                    </div>
+
+                    <hr class="border-gray-300 mb-6">
+
+                    <div class="mb-10">
+                        <p class="text-gray-500 text-xs uppercase font-bold mb-1">Bill To:</p>
+                        <h3 id="prevClientName" class="text-lg font-bold">Client Name</h3>
+                        <p id="prevClientAddress" class="text-sm text-gray-700 whitespace-pre-line mb-1">Client Address</p>
+                        <p class="text-sm text-gray-700" id="prevClientPanRow" style="display:none;"><strong>PAN:</strong> <span id="prevClientPan"></span></p>
+                    </div>
+
+                    <table class="w-full text-left border-collapse mb-8">
+                        <thead>
+                            <tr class="border-b-2 border-gray-800">
+                                <th class="py-2 text-xs font-bold text-gray-700 uppercase w-12">Sl.</th>
+                                <th class="py-2 text-xs font-bold text-gray-700 uppercase">Description</th>
+                                <th class="py-2 text-xs font-bold text-gray-700 uppercase w-24">Basis</th>
+                                <th class="py-2 text-xs font-bold text-gray-700 uppercase text-right w-20">Rate</th>
+                                <th class="py-2 text-xs font-bold text-gray-700 uppercase text-right w-24">Qty</th>
+                                <th class="py-2 text-xs font-bold text-gray-700 uppercase text-right w-24">Amount (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewItemsBody">
+                            </tbody>
+                        <tfoot>
+                            <tr class="border-t-2 border-gray-800">
+                                <td colspan="5" class="pt-4 text-right text-lg font-bold text-gray-800">Total Amount:</td>
+                                <td class="pt-4 text-right text-lg font-bold text-blue-900" id="prevTotal">₹ 0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <div class="invoice-footer">
+                        
+                        <div class="flex justify-between mb-8">
+                            <div class="text-center">
+                                <div class="h-16"></div> 
+                                <div class="border-t border-gray-400 w-40 pt-2 text-sm font-semibold text-gray-700">Service Provider</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="h-16"></div>
+                                <div class="border-t border-gray-400 w-40 pt-2 text-sm font-semibold text-gray-700">Authorized Signatory</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 p-2 rounded border border-gray-200 text-xs text-gray-700 mb-4">
+                            <p id="tdsDeclarationText">
+                                TDS deducted as per Income Tax Act, 1961.
+                            </p>
+                        </div>
+
+                        <div class="text-left">
+                            <p class="text-xs font-bold text-gray-800 mb-1">Declaration:</p>
+                            <p class="text-[10px] text-gray-600 leading-tight text-justify">
+                                I hereby declare that the above-mentioned services have been rendered as stated and the invoice is raised in accordance with the provisions of the Income Tax Act, 1961.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Initialization ---
+        window.onload = function() {
+            addItem();
+            document.getElementById('invoiceDate').valueAsDate = new Date();
+            updatePreview();
+        };
+
+        // --- Core Functions ---
+
+        function addItem() {
+            const container = document.getElementById('itemsContainer');
+            const div = document.createElement('div');
+            div.className = "item-row bg-gray-50 p-3 rounded border shadow-sm animate-fade-in";
+            div.innerHTML = `
+                <div class="flex gap-2 mb-2">
+                    <input type="text" placeholder="Description of work" class="item-desc border p-1 rounded w-full text-xs focus:ring-1 focus:ring-blue-400 outline-none" oninput="updatePreview()">
+                    <button onclick="this.closest('.item-row').remove(); calculateTotals();" class="text-red-500 font-bold px-2 text-xs border border-red-200 rounded hover:bg-red-50 transition">Del</button>
+                </div>
+                <div class="flex gap-2">
+                    <select class="item-basis border p-1 rounded w-1/3 text-xs bg-white" onchange="handleLumpSum(this); calculateTotals();">
+                        <option value="Per Hour">Per Hour</option>
+                        <option value="Per Day">Per Day</option>
+                        <option value="Per Week">Per Week</option>
+                        <option value="Per Month">Per Month</option>
+                        <option value="Per Unit">Per Unit</option>
+                        <option value="Lump Sum">Lump Sum</option>
+                    </select>
+                    <input type="number" placeholder="Rate" class="item-rate border p-1 rounded w-1/3 text-xs" oninput="calculateTotals()">
+                    <input type="number" placeholder="Qty" class="item-qty border p-1 rounded w-1/3 text-xs" value="1" oninput="calculateTotals()">
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        // Helper to visually disable Qty if Lump Sum
+        function handleLumpSum(selectElement) {
+            const row = selectElement.closest('.item-row');
+            const qtyInput = row.querySelector('.item-qty');
+            if (selectElement.value === 'Lump Sum') {
+                qtyInput.value = 1;
+                qtyInput.disabled = true;
+                qtyInput.classList.add('bg-gray-200', 'text-gray-400');
+            } else {
+                qtyInput.disabled = false;
+                qtyInput.classList.remove('bg-gray-200', 'text-gray-400');
+            }
+        }
+
+        function validateProviderPan(input) {
+            const val = input.value.toUpperCase();
+            const panStatusMsg = document.getElementById('panStatusMsg');
+            const regex = /[A-Z]{5}[0-9]{4}[A-Z]{1}/;
+            const isValidFormat = regex.test(val);
+
+            // Visual Validation
+            if(val.length > 0 && !isValidFormat) {
+                input.classList.add('border-red-500', 'bg-red-50');
+                panStatusMsg.innerText = "Invalid Format";
+                panStatusMsg.className = "text-[10px] text-red-500 mt-1 italic font-bold";
+            } else {
+                input.classList.remove('border-red-500', 'bg-red-50');
+                input.classList.add('border-green-500');
+            }
+
+            // 4th Character Logic for TDS
+            const tdsSelect = document.getElementById('tdsSection');
+            const opt194C_1 = document.getElementById('opt194c_1');
+            
+            if (isValidFormat) {
+                const statusChar = val.charAt(3); // 4th char
+                if (statusChar === 'P') {
+                    opt194C_1.disabled = false;
+                    opt194C_1.innerText = "Sec 194C - Contractor (Indiv/HUF) (1%)";
+                    panStatusMsg.innerText = "Status: Individual (1% TDS allowed)";
+                    panStatusMsg.className = "text-[10px] text-green-600 mt-1 italic";
+                } else {
+                    opt194C_1.disabled = true;
+                    opt194C_1.innerText = "Sec 194C - N/A (Not Individual)";
+                    panStatusMsg.innerText = "Status: Firm/Co (1% TDS locked)";
+                    panStatusMsg.className = "text-[10px] text-orange-600 mt-1 italic";
+                    if (tdsSelect.value === "1") {
+                        tdsSelect.value = "2"; // Auto-switch to 2%
+                        calculateTotals();
+                    }
+                }
+            }
+        }
+
+        function calculateTotals() {
+            const rows = document.querySelectorAll('.item-row');
+            
+            let gross = 0;
+            let htmlRows = '';
+            let slNo = 1;
+
+            rows.forEach((row) => {
+                const desc = row.querySelector('.item-desc').value || "";
+                const basis = row.querySelector('.item-basis').value;
+                const rate = parseFloat(row.querySelector('.item-rate').value) || 0;
+                let qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+
+                // Calculation
+                const total = rate * qty;
+                gross += total;
+
+                // Smart Qty Display Logic
+                let qtyDisplay = "";
+                if (basis === "Lump Sum") {
+                    qtyDisplay = ""; // Blank if Lump Sum
+                } else {
+                    // Remove "Per " from basis to get suffix (e.g., "Hour", "Day")
+                    let suffix = basis.replace("Per ", "");
+                    qtyDisplay = `${qty} ${suffix}`;
+                }
+
+                if(desc || total > 0) {
+                    htmlRows += `
+                    <tr class="border-b border-gray-200">
+                        <td class="py-2 text-xs text-gray-600 align-top">${slNo}</td>
+                        <td class="py-2 text-xs text-gray-600 break-words align-top pr-2 font-medium">${desc}</td>
+                        <td class="py-2 text-xs text-gray-600 align-top">${basis}</td>
+                        <td class="py-2 text-xs text-gray-600 text-right align-top">${rate.toFixed(2)}</td>
+                        <td class="py-2 text-xs text-gray-600 text-right align-top">${qtyDisplay}</td>
+                        <td class="py-2 text-xs text-gray-800 text-right font-bold align-top">${total.toFixed(2)}</td>
+                    </tr>`;
+                    slNo++;
+                }
+            });
+
+            // TDS Calculation
+            const tdsSelect = document.getElementById('tdsSection');
+            const tdsRate = parseFloat(tdsSelect.value);
+            const tdsSectionName = tdsSelect.options[tdsSelect.selectedIndex].text;
+            const tdsAmount = gross * (tdsRate / 100);
+
+            // Update DOM
+            document.getElementById('previewItemsBody').innerHTML = htmlRows;
+            document.getElementById('prevTotal').innerText = "₹ " + gross.toFixed(2);
+
+            // Update Declaration Text
+            const declarationEl = document.getElementById('tdsDeclarationText');
+            if (tdsRate > 0) {
+                declarationEl.innerHTML = `<strong>TDS Note:</strong> The TDS at <strong>${tdsSectionName}</strong> amounting to <strong>₹ ${tdsAmount.toFixed(2)}</strong> can be deducted as per Income Tax Act, 1961.`;
+            } else {
+                declarationEl.innerHTML = "No TDS is applicable on this invoice.";
+            }
+        }
+
+        function updatePreview() {
+            // Mapping Inputs
+            document.getElementById('prevProviderName').innerText = document.getElementById('providerName').value || "Your Name";
+            document.getElementById('prevProviderAddress').innerText = document.getElementById('providerAddress').value || "Address";
+            document.getElementById('prevProviderPan').innerText = document.getElementById('providerPan').value || "XXXXX0000X";
+            
+            document.getElementById('prevClientName').innerText = document.getElementById('clientName').value || "Client Name";
+            document.getElementById('prevClientAddress').innerText = document.getElementById('clientAddress').value || "Billing Address";
+            
+            // Conditional Client PAN
+            const cPan = document.getElementById('clientPan').value;
+            const cPanRow = document.getElementById('prevClientPanRow');
+            if(cPan && cPan.trim() !== "") {
+                cPanRow.style.display = "block";
+                document.getElementById('prevClientPan').innerText = cPan;
+            } else {
+                cPanRow.style.display = "none";
+            }
+
+            // Conditional Invoice No
+            const invNo = document.getElementById('invoiceNo').value;
+            const invRow = document.getElementById('prevInvNoRow');
+            if(invNo && invNo.trim() !== "") {
+                invRow.style.display = "block";
+                document.getElementById('prevInvNo').innerText = invNo;
+            } else {
+                invRow.style.display = "none";
+            }
+            
+            // Update Place & Date
+            const place = document.getElementById('invoicePlace').value;
+            document.getElementById('prevPlace').innerText = place ? place : "India";
+            document.getElementById('prevDate').innerText = document.getElementById('invoiceDate').value || "Pending";
+
+            calculateTotals();
+        }
+
+        function generatePDF() {
+            const element = document.getElementById('invoiceElement');
+            const invNo = document.getElementById('invoiceNo').value || 'Invoice';
+            
+            const opt = {
+                margin:       0, 
+                filename:     `${invNo}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, scrollY: 0 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+    </script>
+</body>
+</html>
