@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultancy Invoice Generator</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* --- GLOBAL VARIABLES --- */
+        :root {
+            --primary: #2563eb;
+            --bg-color: #f3f4f6;
+            --panel-bg: #ffffff;
+            --border: #e5e7eb;
+            --text-dark: #111827;
+            --text-light: #6b7280;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+
+        /* --- APP LAYOUT --- */
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+
+        /* Left Panel (Inputs) */
+        .input-panel {
+            flex: 1;
+            background: var(--panel-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            height: fit-content;
+        }
+
+        /* Right Panel (Preview) */
+        .preview-panel {
+            flex: 0 0 210mm;
+        }
+
+        /* Responsive Mobile */
+        @media (max-width: 1100px) {
+            .app-container { flex-direction: column; }
+            .preview-panel { width: 100%; overflow-x: auto; }
+        }
+
+        /* --- FORM STYLING --- */
+        h1 { margin: 0; font-size: 1.5rem; color: var(--text-dark); }
+        h2 { font-size: 1.1rem; color: var(--primary); margin-bottom: 15px; border-bottom: 2px solid #eff6ff; padding-bottom: 10px; margin-top: 20px; }
+        
+        label { display: block; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; color: #4b5563; margin-bottom: 5px; margin-top: 10px; }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            background: #fff;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Buttons */
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        
+        .btn-download {
+            flex: 1; background-color: #16a34a; color: white; padding: 12px;
+            border: none; border-radius: 6px; font-weight: bold; cursor: pointer;
+        }
+        .btn-print {
+            flex: 1; background-color: #2563eb; color: white; padding: 12px;
+            border: none; border-radius: 6px; font-weight: bold; cursor: pointer;
+        }
+        .btn-add {
+            background-color: #eff6ff; color: var(--primary); border: 1px solid #bfdbfe;
+            padding: 4px 10px; border-radius: 15px; font-size: 0.75rem; cursor: pointer; float: right; font-weight: bold;
+        }
+        .btn-del {
+            background: #fee2e2; color: #ef4444; border: 1px solid #fecaca;
+            width: 30px; height: 30px; border-radius: 4px; cursor: pointer; font-weight: bold;
+        }
+
+        /* Item Rows */
+        .item-row { display: flex; gap: 8px; margin-bottom: 8px; background: #f9fafb; padding: 8px; border-radius: 6px; border: 1px solid #f3f4f6; align-items: center; }
+
+        /* --- INVOICE PAPER (Strict Fix for Blank Page) --- */
+        .invoice-paper {
+            width: 210mm;
+            height: 296mm; /* FIXED HEIGHT (1mm less than A4 to prevent overflow) */
+            background: white;
+            padding: 15mm 20mm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            color: #000;
+            box-sizing: border-box;
+            overflow: hidden; /* Cuts off any phantom pixels */
+            
+            /* FLEX LAYOUT FOR STICKY FOOTER */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* The middle section grows to push footer down */
+        .inv-body {
+            flex-grow: 1;
+        }
+
+        /* Header */
+        .inv-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .inv-title { font-size: 2.8rem; font-weight: 800; text-transform: uppercase; color: #111827; margin: 0; line-height: 1; }
+        .inv-provider { text-align: right; }
+        .inv-provider h3 { font-size: 1.3rem; font-weight: bold; margin: 0 0 5px 0; }
+
+        /* Bill To */
+        .inv-billto { margin-bottom: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+        
+        /* Table */
+        .inv-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .inv-table th { text-align: left; border-bottom: 2px solid #000; padding: 10px 5px; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; color: #374151; }
+        .inv-table td { border-bottom: 1px solid #e5e7eb; padding: 12px 5px; font-size: 0.9rem; vertical-align: top; }
+        .col-right { text-align: right; }
+        .col-center { text-align: center; }
+        
+        .inv-total td { border-top: 2px solid #000; font-size: 1.2rem; font-weight: bold; padding-top: 15px; color: #111827; }
+
+        /* Footer */
+        .inv-footer { margin-top: 10px; }
+        .signatures { display: flex; justify-content: space-between; margin-bottom: 30px; padding-top: 40px; }
+        .sig-box { text-align: center; width: 180px; }
+        .sig-line { border-top: 1px solid #9ca3af; padding-top: 8px; font-size: 0.85rem; font-weight: 600; color: #374151; }
+        
+        .tds-box { background: #f3f4f6; border: 1px solid #e5e7eb; padding: 10px; font-size: 0.8rem; margin-bottom: 15px; border-radius: 4px; color: #374151; }
+        .declaration { font-size: 0.75rem; color: #6b7280; text-align: justify; line-height: 1.4; margin: 0; }
+
+        /* Helpers */
+        .hidden { display: none !important; }
+        .text-red { color: #dc2626; font-size: 0.7rem; margin-top: 2px; }
+        .text-green { color: #16a34a; font-size: 0.7rem; margin-top: 2px; }
+
+        /* --- PRINT MEDIA QUERY --- */
+        @media print {
+            body { background: white; margin: 0; padding: 0; }
+            .input-panel, .btn-group, .btn-add, .btn-del { display: none !important; }
+            .app-container { display: block; width: 100%; margin: 0; }
+            .preview-panel { width: 100%; margin: 0; padding: 0; }
+            .invoice-paper {
+                box-shadow: none;
+                margin: 0;
+                border: none;
+                width: 100%;
+                height: 296mm; /* Maintain fixed height */
+                padding: 10mm 15mm;
+                overflow: hidden;
+            }
+            @page { margin: 0; size: A4; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <div class="input-panel">
+            <div style="text-align: center; margin-bottom: 10px;">
+                <h1>Invoice Generator</h1>
+                <p style="font-size: 0.7rem; text-transform: uppercase; color: #9ca3af;">Designed by Bibin Jacob</p>
+            </div>
+
+            <div class="section">
+                <h2>1. Service Provider</h2>
+                <label>Name / Firm</label>
+                <input type="text" id="providerName" placeholder="Your Name" oninput="updatePreview()">
+                
+                <label>PAN Number <span id="panStatus" class="text-green"></span></label>
+                <input type="text" id="providerPan" placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase;" oninput="validateProviderPan(this); updatePreview()">
+                
+                <label>Address</label>
+                <textarea id="providerAddress" rows="2" placeholder="Your Address" oninput="updatePreview()"></textarea>
+            </div>
+
+            <div class="section">
+                <h2>2. Client Details</h2>
+                <label>Client Name</label>
+                <input type="text" id="clientName" placeholder="Client Organization" oninput="updatePreview()">
+                
+                <label>Client PAN (Optional)</label>
+                <input type="text" id="clientPan" placeholder="Client PAN" maxlength="10" style="text-transform: uppercase;" oninput="updatePreview()">
+                
+                <label>Billing Address</label>
+                <textarea id="clientAddress" rows="2" placeholder="Client Address" oninput="updatePreview()"></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                <div>
+                    <label>Inv #</label>
+                    <input type="text" id="invoiceNo" placeholder="001" oninput="updatePreview()">
+                </div>
+                <div>
+                    <label>Date</label>
+                    <input type="date" id="invoiceDate" oninput="updatePreview()">
+                </div>
+                <div>
+                    <label>Place</label>
+                    <input type="text" id="invoicePlace" placeholder="City" oninput="updatePreview()">
+                </div>
+            </div>
+
+            <div class="section">
+                <div style="overflow: hidden; margin-bottom: 10px; margin-top: 20px;">
+                    <h2 style="float: left; margin: 0; border: none;">3. Services</h2>
+                    <button class="btn-add" onclick="addItem()">+ Add Row</button>
+                </div>
+                <div id="itemsContainer"></div>
+            </div>
+
+            <div class="section">
+                <label>TDS Section</label>
+                <select id="tdsSection" onchange="calculateTotals()">
+                    <option value="0">No TDS</option>
+                    <option value="10">Sec 194J - Professional Fees (10%)</option>
+                    <option value="2">Sec 194J - Technical Services (2%)</option>
+                    <option value="1" id="opt194c_1">Sec 194C - Contractor (Indiv/HUF) (1%)</option>
+                    <option value="2" id="opt194c_2">Sec 194C - Contractor (Other) (2%)</option>
+                    <option value="5">Sec 194H - Commission (5%)</option>
+                    <option value="10">Sec 194I - Rent (10%)</option>
+                </select>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-print" onclick="window.print()">🖨️ Print</button>
+                <button class="btn-download" onclick="generatePDF()">📥 Download PDF</button>
+            </div>
+        </div>
+
+        <div class="preview-panel">
+            <div id="invoiceElement" class="invoice-paper">
+                
+                <div class="inv-body">
+                    <div class="inv-header">
+                        <div>
+                            <h1 class="inv-title">Invoice</h1>
+                            <div style="color: #4b5563; margin-top: 10px; font-size: 0.9rem;">
+                                <div id="prevInvNoRow" class="hidden"><strong>Invoice #:</strong> <span id="prevInvNo"></span></div>
+                                <div><strong>Date:</strong> <span id="prevDate"></span></div>
+                                <div><strong>Place:</strong> <span id="prevPlace">India</span></div>
+                            </div>
+                        </div>
+                        <div class="inv-provider">
+                            <h3 id="prevProviderName">Your Name</h3>
+                            <div id="prevProviderAddress" style="white-space: pre-line; color: #4b5563; font-size: 0.9rem;">Address</div>
+                            <div style="margin-top: 5px; font-size: 0.9rem;"><strong>PAN:</strong> <span id="prevProviderPan">XXXXX0000X</span></div>
+                        </div>
+                    </div>
+
+                    <div class="inv-billto">
+                        <span style="font-size: 0.75rem; text-transform: uppercase; color: #6b7280; font-weight: bold;">Bill To:</span>
+                        <h3 id="prevClientName" style="margin: 5px 0 2px 0; font-size: 1.2rem;">Client Name</h3>
+                        <div id="prevClientAddress" style="white-space: pre-line; color: #374151; font-size: 0.95rem;">Client Address</div>
+                        <div id="prevClientPanRow" class="hidden" style="margin-top: 5px; font-size: 0.9rem;"><strong>PAN:</strong> <span id="prevClientPan"></span></div>
+                    </div>
+
+                    <table class="inv-table">
+                        <thead>
+                            <tr>
+                                <th width="30" class="col-center">Sl.</th>
+                                <th>Description</th>
+                                <th width="80">Basis</th>
+                                <th width="80" class="col-right">Rate</th>
+                                <th width="80" class="col-right">Qty</th>
+                                <th width="100" class="col-right">Amount (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewItemsBody">
+                            </tbody>
+                        <tfoot>
+                            <tr class="inv-total">
+                                <td colspan="5" class="col-right">Total Amount:</td>
+                                <td class="col-right" id="prevTotal">₹ 0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="inv-footer">
+                    <div class="signatures">
+                        <div class="sig-box">
+                            <div style="height: 40px;"></div>
+                            <div class="sig-line">Service Provider</div>
+                        </div>
+                        <div class="sig-box">
+                            <div style="height: 40px;"></div>
+                            <div class="sig-line">Authorized Signatory</div>
+                        </div>
+                    </div>
+
+                    <div class="tds-box">
+                        <span id="tdsDeclarationText">TDS deducted as per Income Tax Act, 1961.</span>
+                    </div>
+
+                    <div>
+                        <strong style="font-size: 0.75rem; text-transform: uppercase;">Declaration:</strong>
+                        <p class="declaration">
+                            I hereby declare that the above-mentioned services have been rendered as stated and the invoice is raised in accordance with the provisions of the Income Tax Act, 1961.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            addItem();
+            document.getElementById('invoiceDate').valueAsDate = new Date();
+            updatePreview();
+        };
+
+        function addItem() {
+            const container = document.getElementById('itemsContainer');
+            const div = document.createElement('div');
+            div.className = "item-row";
+            div.innerHTML = `
+                <div style="flex: 2;"><input type="text" placeholder="Description" class="item-desc" style="margin:0;" oninput="updatePreview()"></div>
+                <div style="flex: 1;">
+                    <select class="item-basis" style="margin:0;" onchange="handleLumpSum(this); calculateTotals();">
+                        <option value="Per Hour">Per Hour</option>
+                        <option value="Per Day">Per Day</option>
+                        <option value="Per Week">Per Week</option>
+                        <option value="Per Month">Per Month</option>
+                        <option value="Per Unit">Per Unit</option>
+                        <option value="Lump Sum">Lump Sum</option>
+                    </select>
+                </div>
+                <div style="flex: 0.8;"><input type="number" placeholder="Rate" class="item-rate" style="margin:0;" oninput="calculateTotals()"></div>
+                <div style="flex: 0.6;"><input type="number" placeholder="Qty" class="item-qty" value="1" style="margin:0;" oninput="calculateTotals()"></div>
+                <div><button class="btn-del" onclick="this.closest('.item-row').remove(); calculateTotals();">×</button></div>
+            `;
+            container.appendChild(div);
+        }
+
+        function handleLumpSum(selectElement) {
+            const row = selectElement.closest('.item-row');
+            const qtyInput = row.querySelector('.item-qty');
+            if (selectElement.value === 'Lump Sum') {
+                qtyInput.value = 1;
+                qtyInput.disabled = true;
+                qtyInput.style.backgroundColor = '#f3f4f6';
+            } else {
+                qtyInput.disabled = false;
+                qtyInput.style.backgroundColor = 'white';
+            }
+        }
+
+        function validateProviderPan(input) {
+            const val = input.value.toUpperCase();
+            const msg = document.getElementById('panStatus');
+            const regex = /[A-Z]{5}[0-9]{4}[A-Z]{1}/;
+            const isValid = regex.test(val);
+
+            // Styling
+            if(val.length > 0 && !isValid) {
+                input.style.borderColor = "#dc2626";
+                input.style.backgroundColor = "#fef2f2";
+            } else if (isValid) {
+                input.style.borderColor = "#16a34a";
+                input.style.backgroundColor = "#f0fdf4";
+            } else {
+                input.style.borderColor = "#e5e7eb";
+                input.style.backgroundColor = "white";
+            }
+
+            // Logic
+            const opt194C_1 = document.getElementById('opt194c_1');
+            const tdsSelect = document.getElementById('tdsSection');
+            
+            if (isValid) {
+                const statusChar = val.charAt(3);
+                if (statusChar === 'P') { 
+                    opt194C_1.disabled = false;
+                    opt194C_1.innerText = "Sec 194C - Contractor (Indiv/HUF) (1%)";
+                    msg.innerText = "✓ Individual";
+                    msg.className = "text-green";
+                } else { 
+                    opt194C_1.disabled = true;
+                    opt194C_1.innerText = "Sec 194C - N/A (Not Individual)";
+                    msg.innerText = "⚠ Firm/Co";
+                    msg.className = "text-red";
+                    if (tdsSelect.value === "1") { tdsSelect.value = "2"; calculateTotals(); }
+                }
+            } else {
+                msg.innerText = "";
+            }
+        }
+
+        function calculateTotals() {
+            const rows = document.querySelectorAll('.item-row');
+            let gross = 0;
+            let htmlRows = '';
+            let slNo = 1;
+
+            rows.forEach((row) => {
+                const desc = row.querySelector('.item-desc').value || "";
+                const basis = row.querySelector('.item-basis').value;
+                const rate = parseFloat(row.querySelector('.item-rate').value) || 0;
+                let qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+
+                const total = rate * qty;
+                gross += total;
+
+                let qtyDisplay = (basis === "Lump Sum") ? "" : `${qty} ${basis.replace("Per ", "")}`;
+
+                if(desc || total > 0) {
+                    htmlRows += `
+                    <tr>
+                        <td class="col-center">${slNo}</td>
+                        <td style="word-break: break-all;">${desc}</td>
+                        <td>${basis}</td>
+                        <td class="col-right">${rate.toFixed(2)}</td>
+                        <td class="col-right">${qtyDisplay}</td>
+                        <td class="col-right" style="font-weight:bold;">${total.toFixed(2)}</td>
+                    </tr>`;
+                    slNo++;
+                }
+            });
+
+            // TDS
+            const tdsSelect = document.getElementById('tdsSection');
+            const tdsRate = parseFloat(tdsSelect.value);
+            const tdsName = tdsSelect.options[tdsSelect.selectedIndex].text;
+            const tdsAmt = gross * (tdsRate / 100);
+
+            // Update
+            document.getElementById('previewItemsBody').innerHTML = htmlRows;
+            document.getElementById('prevTotal').innerText = "₹ " + gross.toFixed(2);
+
+            // Declaration
+            const decEl = document.getElementById('tdsDeclarationText');
+            if (tdsRate > 0) {
+                decEl.innerHTML = `<strong>TDS Note:</strong> The TDS at <strong>${tdsName}</strong> amounting to <strong>₹ ${tdsAmt.toFixed(2)}</strong> can be deducted as per Income Tax Act, 1961.`;
+            } else {
+                decEl.innerHTML = "No TDS is applicable on this invoice.";
+            }
+        }
+
+        function updatePreview() {
+            document.getElementById('prevProviderName').innerText = document.getElementById('providerName').value || "Your Name";
+            document.getElementById('prevProviderAddress').innerText = document.getElementById('providerAddress').value || "Address";
+            document.getElementById('prevProviderPan').innerText = document.getElementById('providerPan').value || "XXXXX0000X";
+            
+            document.getElementById('prevClientName').innerText = document.getElementById('clientName').value || "Client Name";
+            document.getElementById('prevClientAddress').innerText = document.getElementById('clientAddress').value || "Billing Address";
+            
+            const cPan = document.getElementById('clientPan').value;
+            const cPanRow = document.getElementById('prevClientPanRow');
+            if(cPan) { cPanRow.classList.remove('hidden'); document.getElementById('prevClientPan').innerText = cPan; }
+            else { cPanRow.classList.add('hidden'); }
+
+            const invNo = document.getElementById('invoiceNo').value;
+            const invRow = document.getElementById('prevInvNoRow');
+            if(invNo) { invRow.classList.remove('hidden'); document.getElementById('prevInvNo').innerText = invNo; }
+            else { invRow.classList.add('hidden'); }
+            
+            document.getElementById('prevPlace').innerText = document.getElementById('invoicePlace').value || "India";
+            
+            // --- DATE FORMAT FIX (DD-MM-YYYY) ---
+            const rawDate = document.getElementById('invoiceDate').value;
+            if (rawDate) {
+                const [year, month, day] = rawDate.split('-');
+                document.getElementById('prevDate').innerText = `${day}-${month}-${year}`;
+            } else {
+                document.getElementById('prevDate').innerText = "Pending";
+            }
+
+            calculateTotals();
+        }
+
+        function generatePDF() {
+            const element = document.getElementById('invoiceElement');
+            const invNo = document.getElementById('invoiceNo').value || 'Invoice';
+            const opt = {
+                margin: 0,
+                filename: `${invNo}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, scrollY: 0, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+    </script>
+</body>
+</html>
